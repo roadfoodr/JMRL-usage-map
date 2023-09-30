@@ -6,14 +6,20 @@ Created on Sat Sep 30 01:08:47 2023
 """
 
 import pandas as pd
+import numpy as np
+import geohash  # docs: https://github.com/vinsci/geohash/
+#                 also: https://docs.quadrant.io/quadrant-geohash-algorithm
+#            and maybe: https://www.pluralsight.com/resources/blog/cloud/location-based-search-results-with-dynamodb-and-geohash
+
+import matplotlib.pyplot as plt
 
 DATA_DIR = '../data/'
-DATA_FILE = 'all patrons.xlsx'
+DATA_FILE = 'all patrons_091923.xlsx'
 # GEOCODED_FILE = 'jmrl_data_v2.h5'
 GEOCODED_FILE = 'jmrl_geocode.h5'
 GEOCODED_DSTORE = 'patr_rec_geocoded'
 
-OUT_FILE = 'patrons_091923.csv'
+OUT_FILE = 'patrons_geocoded_091923.xlsx'
 
 
 # %% Read the GEOCODED file
@@ -29,6 +35,8 @@ print('Reading patrons file')
 df_patrons = pd.read_excel(f'{DATA_DIR}{DATA_FILE}')
 df_patrons.rename(columns={'RECORD #(PATRON)':'P ID', 'CREATED(PATRON)':'creation_date'}, inplace=True)
 
+patroncols = [col for col in df_patrons.columns if "Unnamed" not in col]
+df_patrons = df_patrons[patroncols]
 # TODO: need to do some cleanup of the address field in df_patrons
 
 
@@ -45,3 +53,30 @@ df = pd.merge(df_patrons,df_geocoded[['addr_key','lat_orig', 'long_orig']], on='
 df.drop_duplicates(subset=['P ID'], keep='first', ignore_index=True, inplace=True)
 print(f'Matched rows:   {df["lat_orig"].count()}')
 print(f'Unmatched rows: {df["lat_orig"].isna().sum()}')
+
+
+# %% geohashing
+print('geohashing')
+df['geoloc'] = df.apply(lambda x: np.nan if pd.isna(x['lat_orig']) or pd.isna(x['long_orig'])
+                        else geohash.encode(x['lat_orig'], x['long_orig'], precision=6), 
+                        axis=1)
+
+print('reverse geohashing')
+def gh_decode(hash):
+    if pd.isna(hash):
+        lat, lon = hash, hash
+    else:
+        lat, lon = geohash.decode(hash)
+    return pd.Series({"lat_geohash":lat, "long_geohash":lon})
+
+df = df.join(df["geoloc"].apply(gh_decode))
+
+# TODO add precision to decode; precompute and cache reverse geoloc at multiple levels of precision
+
+# %% write the spreadsheet
+print('writing spreadsheet')
+df.to_excel(f'{DATA_DIR}{OUT_FILE}', index=False)
+
+
+# %% experimental
+plt.hist(df['TOT CHKOUT'], range=(1, 200), bins=40, density=True)
