@@ -21,7 +21,6 @@ GEOCODED_DSTORE = 'patr_rec_geocoded'
 
 OUT_FILE = 'patrons_geocoded_091923.xlsx'
 
-
 # %% Read the GEOCODED file
 print('Reading Geocoded file')
 data_store = pd.HDFStore(f'{DATA_DIR}{GEOCODED_FILE}')
@@ -39,14 +38,24 @@ patroncols = [col for col in df_patrons.columns if "Unnamed" not in col]
 df_patrons = df_patrons[patroncols]
 # TODO: need to do some cleanup of the address field in df_patrons
 
+# where addr1 is blank, use addr2 if possible
+# https://stackoverflow.com/questions/71762736/pandas-replace-empty-cell-with-value-of-another-column
+df_patrons['ADDRESS'] = df_patrons['ADDRESS'].replace('', pd.NA).fillna(df_patrons['ADDRESS2'])
+
+# remove extraneous patron types (staff, teacher cards)
+df_patrons = df_patrons[df_patrons['P TYPE'] <= 11]
+# remove digital-only patrons
+df_patrons = df_patrons[df_patrons['TOT CHKOUT'] > 0]
 
 # %% try some matching
 print('merging files')
 
 df_patrons['addr_key'] = df_patrons['ADDRESS'].str.replace('$', ' ', regex=False)
 df_patrons['addr_key'] = df_patrons['addr_key'].str.replace(', ', ' ', regex=False)
+df_patrons['addr_key'] = df_patrons['addr_key'].str.replace('\s+', ' ', regex=True)
 df_patrons['addr_key'] = df_patrons['addr_key'].str.upper()
-df_geocoded['addr_key'] = df_geocoded['addr_combined'].str.upper()
+df_geocoded['addr_key'] = df_geocoded['addr_combined'].str.replace('\s+', ' ', regex=True)
+df_geocoded['addr_key'] = df_geocoded['addr_key'].str.upper()
 
 df = pd.merge(df_patrons,df_geocoded[['addr_key','lat_orig', 'long_orig']], on='addr_key', how='left')
 # Rows will be duplicated if more than one address row matches; i.e. 2 patrons at same address
