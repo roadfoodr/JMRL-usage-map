@@ -10,7 +10,7 @@ import pandas as pd
 DATA_DIR = '../data/'
 DATA_FILE = 'all physical items_091923.xlsx'
 
-OUT_FILE = 'materials_091923.xlsx'
+OUT_FILE = 'frequent_locations_091923.xlsx'
 
 MATL_LOC_MAP = {
     'a': 'Gordon',
@@ -31,8 +31,8 @@ print('Reading materials file')
 df_matls_orig = pd.read_excel(f'{DATA_DIR}{DATA_FILE}')
 
 # %% For convenience
-df_matls = df_matls_orig.sample(25000, random_state=99, axis=0, ignore_index=True)
-
+# df_matls = df_matls_orig.sample(25000, random_state=99, axis=0, ignore_index=True)
+df_matls = df_matls_orig.copy()
 # %% Remove extraneous columns and rows
 matlcols = [col for col in df_matls.columns if "DATE" not in col]
 df_matls = df_matls[matlcols]
@@ -77,5 +77,32 @@ df_patron_location.sort_values(by=['patron', 'matl_count', 'location'],
                                axis=0, inplace=True)
 df_patron_location.drop_duplicates(subset='patron', keep='first', 
                          ignore_index=True, inplace=True)
-df_patron_location.rename(columns={'location':'frequent_location'}, inplace=True)
 
+# %% identify when the most frequent location was the result of a tie
+df_patron_location_untied = df_matls_grouped.copy()
+
+# first remove all the "tied" counts per patron
+df_patron_location_untied.drop_duplicates(subset=['patron', 'matl_count'], keep=False, 
+                         ignore_index=True, inplace=True)
+
+df_patron_location_untied.sort_values(by=['patron', 'matl_count', 'location'],
+                               ascending=[True, False, True], 
+                               axis=0, inplace=True)
+# recompute most frequent locations for remaining patrons
+df_patron_location_untied.drop_duplicates(subset='patron', keep='first', 
+                          ignore_index=True, inplace=True)
+df_patron_location_untied['frequent_location_tie'] = 0
+
+# unmerged rows (na values after merge) were the result of a tie
+df_patron_location = df_patron_location.merge(
+    df_patron_location_untied, how='left',
+    on=['patron', 'matl_count', 'location'])
+df_patron_location['frequent_location_tie'].fillna(value=1, inplace=True)
+
+df_patron_location.rename(columns={'location':'frequent_location',
+                                   'patron':'patron_abbrev'},
+                          inplace=True)
+
+# %% write the spreadsheet
+print('writing spreadsheet')
+df_patron_location.to_excel(f'{DATA_DIR}{OUT_FILE}', index=False)
