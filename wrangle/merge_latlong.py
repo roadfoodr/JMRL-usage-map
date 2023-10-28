@@ -21,7 +21,7 @@ FREQ_LOC_FILE = 'frequent_locations_091923.xlsx'
 GEOCODED_FILE = 'jmrl_geocode.h5'
 GEOCODED_DSTORE = 'patr_rec_geocoded'
 
-OUT_FILE = 'patrons_geocoded_091923.xlsx'
+OUT_FILE = 'patrons_geocoded_091923.csv'
 
 HOME_BRANCH_MAP = {
     'a': 'Gordon',
@@ -105,7 +105,7 @@ P_AGE_MAP = {
     }
 
 
-# %% Read the GEOCODED file
+# %% Read the (old) GEOCODED file
 print('Reading Geocoded file')
 data_store = pd.HDFStore(f'{DATA_DIR}{GEOCODED_FILE}')
 # dkeys = data_store.keys()
@@ -132,9 +132,14 @@ df_patrons = df_patrons[df_patrons['P TYPE'] <= 11]
 df_patrons = df_patrons[df_patrons['TOT CHKOUT'] > 0]
 
 # %% more wrangling
-str_cols = ['P ID', 'HOME LIBR', 'ADDRESS', 'ADDRESS2']
+str_cols = ['P ID', 'CIRCACTIVE', 'HOME LIBR', 'ADDRESS', 'ADDRESS2']
 for str_col in str_cols:
     df_patrons[str_col] = df_patrons[str_col].str.strip()
+
+# https://stackoverflow.com/questions/48874708/remove-non-ascii-characters-from-string-columns-in-pandas
+str_series = df_patrons.select_dtypes(object)
+df_patrons[str_series.columns] = str_series.apply(
+    lambda x: x.str.encode('ascii', 'ignore').str.decode('ascii'))
 
 df_patrons['home_branch'] = df_patrons['HOME LIBR'].map(HOME_BRANCH_MAP)
 df_patrons['jurisdiction'] = df_patrons['P TYPE'].map(P_JURIS_MAP)
@@ -190,7 +195,7 @@ df = df.merge(df_freq_locations, how='left', on=['patron_abbrev'])
 
 # %% write the spreadsheet
 print('writing spreadsheet')
-df.to_excel(f'{DATA_DIR}{OUT_FILE}', index=False)
+df.to_csv(f'{DATA_DIR}{OUT_FILE}', index=False)
 
 # %% experimental
 plt.hist(df['TOT CHKOUT'], range=(1, 200), bins=40, density=True)
