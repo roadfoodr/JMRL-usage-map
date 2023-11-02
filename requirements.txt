@@ -1,2 +1,3 @@
-awswrangler
-python-geohash
+s3fs
+st-files-connection
+geopandas

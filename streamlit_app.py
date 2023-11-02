@@ -6,58 +6,76 @@ Created on Wed May 24 02:35:20 2023
 """
 
 import pandas as pd
+import geopandas as gpd
 import numpy as np
 import streamlit as st
 from st_files_connection import FilesConnection
 
 from streamlit_utilities import check_password as check_password
 
-import random
+# import os
 
-# import seaborn as sns
-import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
-# import altair as alt
-# import pydeck as pdk
+import pydeck as pdk
 
-# DATA_DIR = './data/'
-DATA_DIR = 'jmrl-visualization/'
-# DATA_FILE = 'patrons_geocoded_grouped_091923.xlsx'
-# DATA_FILE = 'patrons_geocoded_grouped_091923.csv'
-DATA_FILE = 'patrons_geocoded_091923.csv'
+DATA_DIR = './data/'
+S3_DIR = 'jmrl-visualization/'
+S3_FILE = 'patrons_geocoded_091923.csv'
+SHAPE_FILE = 'JMRL_counties.pickle'
 
-map_style = 'mapbox://styles/mapbox/streets-v12'
 
 # %% LOAD DATA ONCE
 @st.cache_data
-def load_data(data_file):
-    path = f'{DATA_DIR}{data_file}'
+def load_data_s3(data_file):
+    path = f'{S3_DIR}{data_file}'
+    conn = st.connection('s3', type=FilesConnection)
+    df_loaded = conn.read(path, input_format="csv", ttl=600)
+    return df_loaded
 
-    conn = st.experimental_connection('s3', type=FilesConnection)
-    df = conn.read(path, input_format="csv", ttl=600)
-        
-    return df
+@st.cache_data
+def load_data_pickle(data_file):
+    path = f'{DATA_DIR}{data_file}'
+    df_loaded = pd.read_pickle(path)        
+    return df_loaded
 
 # %%  STREAMLIT APP LAYOUT
 st.set_page_config(
-    layout="centered",       # alternative option: 'wide'
+    layout="wide",       # alternative option: 'wide'
     page_icon=":book:",
-    page_title="JMRL usage")  # Intentionally obscure
+    page_title="JMRL usage")
+
+# https://github.com/streamlit/streamlit/issues/6336
+st.markdown(
+    """
+        <style>
+            .appview-container .main .block-container {{
+                padding-top: {padding_top}rem;
+                padding-bottom: {padding_bottom}rem;
+                }}
+
+        </style>""".format(
+        padding_top=3, padding_bottom=3
+    ),
+    unsafe_allow_html=True,
+)
 
 if not check_password():
     st.stop()
     # pass
 
-df = load_data(DATA_FILE)
 
-st.write("## JMRL usage")
+# %% load data
+df = load_data_s3(S3_FILE)
+# TODO: read this from S3
+df_counties = load_data_pickle(SHAPE_FILE)
 
+st.title("JMRL usage", anchor="title")
+# st.write(df_counties.head(2))
 
 # %% filter and rename
 df['lat'] = df['lat_orig']
 df['lon'] = df['long_orig']
-
-usecols = ['TOT CHKOUT', 'TOT RENWAL', 
+df['Circ'] = df['TOT CHKOUT'] + df['TOT RENWAL']
+usecols = ['Circ', 
        'creation_date', 'home_branch', 'jurisdiction',
        'card_type', 'lat', 'lon', 'geoloc',
        'lat_geohash', 'long_geohash', 'frequent_location',
@@ -66,18 +84,17 @@ usecols = ['TOT CHKOUT', 'TOT RENWAL',
 df = df[usecols]
 
 df.dropna(subset=['lat', 'lon'], inplace=True)
-# df['color'] = [(0.25, 0.4, 1.0, 0.1)] * len(df)
+df['color'] = [(200, 30, 0, 33)] * len(df)
 
-df['color'] = "#ffaa0030"
 
 # %% preview df
 
-st.write(f"##### Sample of data: {len(df)} rows")
-st.dataframe(df.head(5))
+with st.expander("Data sample", expanded=False):
+    st.write(f"##### Sample of data: {len(df)} rows")
+    st.dataframe(df.head(3))
 
-
-# %% global filter
-st.write("##### Global subset ")
+# %% global filter controls
+st.subheader("Global subset", anchor="filter")
 
 col11, col12 = st.columns(2)
 with col11:
@@ -91,7 +108,8 @@ with col11:
     global_filter_field = st.selectbox(
         'Global filter by:',
         global_filter_options.keys(),
-        format_func=lambda x: global_filter_options[x]
+        format_func=lambda x: global_filter_options[x],
+        key='global_filter_1'
         )
     
     if global_filter_field != 'All':
@@ -109,8 +127,8 @@ with col11:
                           or global_filter_selection == 'All')
                    else df[df[global_filter_field] == global_filter_selection].copy()
                    )
-st.write(f'Rows in current view: {len(df_filtered)}')
-st.dataframe(df_filtered.head(5))
+st.caption(f'Rows in current view: {len(df_filtered)}')
+# st.dataframe(df_filtered.head(5))
 
 # %% set up color column
 if False:
@@ -128,22 +146,85 @@ if False:
     # cmap = plt.cm.coolwarm
     
     # TODO: select the high_clip as a percentile of values, provide slider control
-    norm = mcolors.Normalize(vmin=np.nanmin(df_grouped[color_source_col].values),
-                               vmax=np.nanmax(df_grouped[color_source_col].values), 
+    norm = mcolors.Normalize(vmin=np.nanmin(df_filtered[color_source_col].values),
+                               vmax=np.nanmax(df_filtered[color_source_col].values), 
                               # vmax=11900, 
                              clip=True)
     mapper = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
     
-    # df_grouped['color'] = df_grouped[color_source_col].apply(lambda x: mcolors.to_hex(mapper.to_rgba(x)))
-    df_grouped['color'] = df_grouped[color_source_col].apply(lambda x: mapper.to_rgba(x, alpha=.4))
+    # df_filtered['color'] = df_filtered[color_source_col].apply(lambda x: mapper.to_rgba(x, alpha=.4))
+    df_filtered['color'] = df_filtered[color_source_col].apply(lambda x: 
+                                                               [255*c
+                                                                for c in
+                                                                mapper.to_rgba(x, alpha=.2)])
 
 
+# %% construct and display map
 
-# %% display map
-st.write("##### Map: selected patrons")
-st.write(df_filtered['color'].value_counts())
-# st.write(df_filtered.dtypes)
-df_filtered['color'] = "#ffaa0030"
+df_latlon = df_filtered[['lat', 'lon', 'color']].copy()
+# st.write(df_latlon.head(10))
 
-# st.map(data=df_filtered, zoom=9, color='color', size=50)
-st.map(data=df_filtered, zoom=9, color='#6babd030', size=10)
+col31, col32 = st.columns(2)
+
+map_style_options = { 'mapbox://styles/mpowers38111/clogll9d8006p01qjcy6b5vzm': 'Style 1', 
+                      'mapbox://styles/mapbox/light-v11': 'Style 2',
+                      }
+
+with col31:
+    st.subheader("Map: Patrons (as selected)", anchor="map")
+
+
+with col32:
+    map_style = st.radio('Map Background', map_style_options.keys(),
+                            format_func=lambda x: map_style_options[x])
+
+def construct_patron_map(df, map_style):
+    patron_map = pdk.Deck(
+        # map_style=None,
+        map_style=map_style,
+        initial_view_state=pdk.ViewState(
+            # latitude=38.06,
+            # longitude=-78.517,
+            latitude=df['lat'].mean(),
+            longitude=df['lon'].mean(),
+            zoom=9,
+            # pitch=50,
+            ),
+        layers=[
+            pdk.Layer(
+                type = "GeoJsonLayer",
+                data=df_counties,
+                line_width_min_pixels=1.5,
+                pickable=True,
+                auto_highlight=True,
+                stroked=True,
+                filled=False,
+                get_line_color=[0, 0, 0, 48],
+                ),
+            pdk.Layer(
+                # 'ScatterplotLayer',
+                'HeatmapLayer',
+                opacity=.2,
+                data=df,
+                get_position=['lon', 'lat'],
+                # get_color='[200, 30, 0, 33]',
+                # get_color=map_color_field,
+                # get_color='color',
+                get_radius=150,
+                ),
+            ],
+        tooltip = {
+            # Can only display tooltip from one pickable layer, currently GeoJsonLayer
+            "text": "{NAME}"
+            },
+        )
+    return patron_map
+
+
+patron_map = construct_patron_map(df_latlon, map_style)
+st.pydeck_chart(patron_map)
+
+# Possible performance improvement, but not displaying background map tiles
+# import streamlit.components.v1 as components
+# components.html(patron_map.to_html(as_string=True), height=600)
+

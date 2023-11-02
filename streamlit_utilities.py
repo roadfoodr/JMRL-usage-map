@@ -8,13 +8,6 @@ Created on Thu May 25 00:56:32 2023
 import streamlit as st
 
 
-CalcColors = ['#2f78b3', # 47, 120, 179  Blue
-                   '#6babd0', # 107, 171, 208
-                   '#f2efee', # 242, 239, 238 Gray
-                   '#e48169', # 228, 129, 105
-                   '#bf363a', # 191, 54, 58   Red
-                   ]
-
 def hex_to_rgb(hex):
   return [int(hex[i:i+2], 16) for i in (0, 2, 4)]
 
