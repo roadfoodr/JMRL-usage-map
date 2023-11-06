@@ -130,6 +130,26 @@ with col11:
 st.caption(f'Rows in current view: {len(df_filtered)}')
 # st.dataframe(df_filtered.head(5))
 
+# %% experimental demo
+col21, col22 = st.columns(2)
+
+with col21:
+    demo_filter = st.checkbox('Experimental demo - Frequent is Central but Home is not Central')
+    if demo_filter: 
+        df_filtered = df[(df['frequent_location'] == 'Central') &
+                         (df['home_branch'] != 'Central')]
+        st.caption(f'Rows in current view: {len(df_filtered)}')
+
+with col22:
+    view_style_options = {'HeatmapLayer': 'Heat map',
+                          'ScatterplotLayer': 'Scatter plot',
+                          }
+
+    view_style = st.selectbox("View Style:",
+                              view_style_options.keys(),
+                              format_func=lambda x: view_style_options[x],
+                              key='view_style_filter')
+
 # %% set up color column
 if False:
     # https://stackoverflow.com/questions/47398081/how-do-i-map-df-column-values-to-hex-color-in-one-go
@@ -188,7 +208,6 @@ def construct_patron_map(df, map_style):
             latitude=df['lat'].mean(),
             longitude=df['lon'].mean(),
             zoom=9,
-            # pitch=50,
             ),
         layers=[
             pdk.Layer(
@@ -203,14 +222,18 @@ def construct_patron_map(df, map_style):
                 ),
             pdk.Layer(
                 # 'ScatterplotLayer',
-                'HeatmapLayer',
+                # 'HeatmapLayer',
+                view_style,
                 opacity=.2,
                 data=df,
                 get_position=['lon', 'lat'],
-                # get_color='[200, 30, 0, 33]',
+                get_color='[0, 100, 30, 80]',
                 # get_color=map_color_field,
                 # get_color='color',
-                get_radius=150,
+                get_radius=50,
+                radius_min_pixels=1.33,
+                radius_max_pixels=20
+
                 ),
             ],
         tooltip = {
