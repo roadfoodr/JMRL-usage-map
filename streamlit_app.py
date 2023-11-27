@@ -6,7 +6,7 @@ Created on Wed May 24 02:35:20 2023
 """
 
 import pandas as pd
-import geopandas as gpd
+# import geopandas as gpd
 import numpy as np
 import streamlit as st
 from st_files_connection import FilesConnection
@@ -93,11 +93,14 @@ with st.expander("Data sample", expanded=False):
     st.write(f"##### Sample of data: {len(df)} rows")
     st.dataframe(df.head(3))
 
-# %% global filter controls
-st.subheader("Global subset", anchor="filter")
-
+# %% top columns
 col11, col12 = st.columns(2)
+
+# %% global filter controls
+
 with col11:
+    st.subheader("Global subset", anchor="filter")
+
     global_filter = 'All'
     global_filter_options = {'All': 'All patrons',
                              'jurisdiction': 'Jurisdiction',
@@ -118,7 +121,7 @@ with col11:
         global_filter_vals = global_filter_vals[global_filter_vals != 'none']
         global_filter_vals = global_filter_vals[global_filter_vals != 'Historical Society']
         global_filter_choices = np.sort(global_filter_vals)
-        with col12:
+        with col11:
             global_filter_selection = st.selectbox(
                 f'{global_filter_options[global_filter_field]} to filter by', 
                 ['All'] + list(global_filter_choices))
@@ -127,20 +130,19 @@ with col11:
                           or global_filter_selection == 'All')
                    else df[df[global_filter_field] == global_filter_selection].copy()
                    )
-st.caption(f'Rows in current view: {len(df_filtered)}')
+# st.caption(f'Rows in current view: {len(df_filtered)}')
 # st.dataframe(df_filtered.head(5))
 
 # %% experimental demo
-col21, col22 = st.columns(2)
 
-with col21:
+with col11:
     demo_filter = st.checkbox('Experimental demo - Frequent is Central but Home is not Central')
     if demo_filter: 
         df_filtered = df[(df['frequent_location'] == 'Central') &
                          (df['home_branch'] != 'Central')]
-        st.caption(f'Rows in current view: {len(df_filtered)}')
+    st.caption(f'Rows in current view: {len(df_filtered)}')
 
-with col22:
+with col11:
     view_style_options = {'HeatmapLayer': 'Heat map',
                           'ScatterplotLayer': 'Scatter plot',
                           }
@@ -179,24 +181,25 @@ if False:
                                                                 mapper.to_rgba(x, alpha=.2)])
 
 
+
+# %% map background
+
+MAP_BACKGROUND_CONTROL = False
+map_style_options = { 'mapbox://styles/mpowers38111/clogll9d8006p01qjcy6b5vzm': 'Style 1', 
+                      'mapbox://styles/mapbox/light-v11': 'Style 2',
+                      }
+map_style, *unused = map_style_options.keys()
+
+if MAP_BACKGROUND_CONTROL:
+    
+    with col12:
+        map_style = st.radio('Map Background', map_style_options.keys(),
+                                format_func=lambda x: map_style_options[x])
+
 # %% construct and display map
 
 df_latlon = df_filtered[['lat', 'lon', 'color']].copy()
 # st.write(df_latlon.head(10))
-
-col31, col32 = st.columns(2)
-
-map_style_options = { 'mapbox://styles/mpowers38111/clogll9d8006p01qjcy6b5vzm': 'Style 1', 
-                      'mapbox://styles/mapbox/light-v11': 'Style 2',
-                      }
-
-with col31:
-    st.subheader("Map: Patrons (as selected)", anchor="map")
-
-
-with col32:
-    map_style = st.radio('Map Background', map_style_options.keys(),
-                            format_func=lambda x: map_style_options[x])
 
 def construct_patron_map(df, map_style):
     patron_map = pdk.Deck(
@@ -243,6 +246,7 @@ def construct_patron_map(df, map_style):
         )
     return patron_map
 
+st.subheader("Map: Patrons (as selected)", anchor="map")
 
 patron_map = construct_patron_map(df_latlon, map_style)
 st.pydeck_chart(patron_map)
