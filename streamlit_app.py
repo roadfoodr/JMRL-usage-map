@@ -15,6 +15,7 @@ from streamlit_utilities import check_password as check_password
 
 # import os
 
+import altair as alt
 import pydeck as pdk
 
 DATA_DIR = './data/'
@@ -99,7 +100,7 @@ col11, col12 = st.columns(2)
 # %% global filter controls
 
 with col11:
-    st.subheader("Global subset", anchor="filter")
+    # st.subheader("Global subset", anchor="filter")
 
     global_filter = 'All'
     global_filter_options = {'All': 'All patrons',
@@ -151,6 +152,44 @@ with col11:
                               view_style_options.keys(),
                               format_func=lambda x: view_style_options[x],
                               key='view_style_filter')
+
+# %% set up bar chart
+
+aggregate_field = 'frequent_location'
+sort_field = 'count'
+
+aggregate_field_options = {
+    'frequent_location': 'Frequent Branch',
+    'home_branch': 'Home Branch',
+    'jurisdiction': 'Jurisdiction',
+    }
+
+with col12:
+    aggregate_field = st.selectbox(
+        'Categorize by:',
+        aggregate_field_options.keys(),
+        format_func=lambda x: aggregate_field_options[x],
+        key='aggregate_field_1'
+        )
+
+df_grouped = df_filtered[[aggregate_field]].groupby(
+    by=[aggregate_field], as_index=False).value_counts(sort=True, ascending=False)
+# df_grouped.reset_index(inplace=True)
+
+c = alt.Chart(df_grouped).mark_bar().encode(
+    x=alt.X(aggregate_field,
+            title=aggregate_field_options[aggregate_field],
+            sort=alt.SortField(field=sort_field,
+                                order='descending',
+                                ),
+            ),
+    y=alt.Y(sort_field),
+)
+
+with col12:
+    # st.write(df_grouped.head(10))
+    st.altair_chart(c, use_container_width=True)
+
 
 # %% set up color column
 if False:
