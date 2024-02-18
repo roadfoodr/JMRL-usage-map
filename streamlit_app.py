@@ -24,7 +24,7 @@ S3_FILE = 'patrons_geocoded_091923.csv'
 SHAPE_FILE = 'JMRL_counties.pickle'
 
 
-# %% LOAD DATA ONCE
+# %% load data once
 @st.cache_data
 def load_data_s3(data_file):
     path = f'{S3_DIR}{data_file}'
@@ -73,8 +73,8 @@ st.title("JMRL usage", anchor="title")
 # st.write(df_counties.head(2))
 
 # %% filter and rename
-df['lat'] = df['lat_orig']
-df['lon'] = df['long_orig']
+df['lat'] = df['lat_anon']
+df['lon'] = df['long_anon']
 df['Circ'] = df['TOT CHKOUT'] + df['TOT RENWAL']
 usecols = ['Circ', 
        'creation_date', 'home_branch', 'jurisdiction',

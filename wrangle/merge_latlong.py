@@ -179,6 +179,32 @@ df = df.join(df["geoloc"].apply(gh_decode))
 
 # TODO add precision to decode; precompute and cache reverse geoloc at multiple levels of precision
 
+# %% anonymize locations by adding noise
+
+# per http://www.csgnetwork.com/degreelenllavcalc.html
+FT_PER_DEG_LAT = 364163.25207463733
+FT_PER_DEG_LONG = 288012.5885765249
+# Market Street Park is about 1 acre, which should be 220ft x 220ft.  
+# Using 500 ft +/- 250 as our 'fudge factor'
+LOC_NOISE_FT = 500
+LOC_NOISE_DEG_LAT = LOC_NOISE_FT / FT_PER_DEG_LAT
+LOC_NOISE_DEG_LONG = LOC_NOISE_FT / FT_PER_DEG_LONG
+
+print('anonymizing locations')
+num_rows = len(df)
+
+# Anonymize the lat/long coords by adding a noise factor (about 250-750 feet)
+lat_noise = (np.random.uniform(0.0, LOC_NOISE_DEG_LAT, num_rows) +
+             (LOC_NOISE_DEG_LAT / 2))
+lat_signs = (2 * np.random.randint(0, 2, num_rows) - 1)
+long_noise = (np.random.uniform(0.0, LOC_NOISE_DEG_LONG, num_rows) +
+             (LOC_NOISE_DEG_LONG / 2)) * (2*np.random.randint(0, 2) - 1)
+long_signs = (2 * np.random.randint(0, 2, num_rows) - 1)
+
+df['lat_anon'] = df['lat_orig'] + (lat_noise * lat_signs)
+df['long_anon'] = df['long_orig'] + (long_noise * long_signs)
+
+df.drop(columns=['lat_orig', 'long_orig'], inplace=True)
 
 # %% also merge frequent location
 
