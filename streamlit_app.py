@@ -59,9 +59,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if not check_password():
-    st.stop()
-    # pass
+# if not check_password():
+#     st.stop()
+#     # pass
 
 
 # %% load data
@@ -90,9 +90,9 @@ df['color'] = [(200, 30, 0, 33)] * len(df)
 
 # %% preview df
 
-with st.expander("Data sample", expanded=False):
-    st.write(f"##### Sample of data: {len(df)} rows")
-    st.dataframe(df.head(3))
+with st.expander("Data sample (anonymized)", expanded=False):
+    st.write(f"##### Sample of data: {len(df)} total rows")
+    st.dataframe(df.head(5))
 
 # %% top columns
 col11, col12 = st.columns(2)
@@ -137,10 +137,6 @@ with col11:
 # %% experimental demo
 
 with col11:
-    demo_filter = st.checkbox('Experimental demo - Frequent is Central but Home is not Central')
-    if demo_filter: 
-        df_filtered = df[(df['frequent_location'] == 'Central') &
-                         (df['home_branch'] != 'Central')]
     st.caption(f'Rows in current view: {len(df_filtered)}')
 
 with col11:

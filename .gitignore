@@ -1,6 +1,8 @@
 # Local
 data_stash/
 .streamlit/secrets.toml
+*.bak
+*[Kk]eys*
 
 
 # Byte-compiled / optimized / DLL files
