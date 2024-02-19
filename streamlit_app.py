@@ -11,7 +11,8 @@ import numpy as np
 import streamlit as st
 from st_files_connection import FilesConnection
 
-from streamlit_utilities import check_password as check_password
+# from streamlit_utilities import check_password as check_password
+from streamlit_utilities import category_colors
 
 # import os
 
@@ -85,8 +86,8 @@ usecols = ['Circ',
 df = df[usecols]
 
 df.dropna(subset=['lat', 'lon'], inplace=True)
-df['color'] = [(200, 30, 0, 33)] * len(df)
-
+# df['color'] = [(200, 30, 0, 33)] * len(df)
+df['color'] = df['home_branch'].map(category_colors)
 
 # %% preview df
 
@@ -100,8 +101,6 @@ col11, col12 = st.columns(2)
 # %% global filter controls
 
 with col11:
-    # st.subheader("Global subset", anchor="filter")
-
     global_filter = 'All'
     global_filter_options = {'All': 'All patrons',
                              'jurisdiction': 'Jurisdiction',
@@ -134,14 +133,14 @@ with col11:
 # st.caption(f'Rows in current view: {len(df_filtered)}')
 # st.dataframe(df_filtered.head(5))
 
-# %% experimental demo
+# %% view style controls
 
 with col11:
     st.caption(f'Rows in current view: {len(df_filtered)}')
 
 with col11:
-    view_style_options = {'HeatmapLayer': 'Heat map',
-                          'ScatterplotLayer': 'Scatter plot',
+    view_style_options = {'ScatterplotLayer': 'Scatter plot',
+                          'HeatmapLayer': 'Heat map',
                           }
 
     view_style = st.selectbox("View Style:",
@@ -188,36 +187,11 @@ with col12:
 
 
 # %% set up color column
-if False:
-    # https://stackoverflow.com/questions/47398081/how-do-i-map-df-column-values-to-hex-color-in-one-go
-    # https://matplotlib.org/stable/users/explain/colors/colormaps.html
-    
-    # color_source_col = 'Patron_count'
-    color_source_col = 'Circ'
-    # cmap = plt.cm.viridis
-    # cmap = plt.cm.Reds
-    # cmap = plt.cm.plasma
-    # cmap = plt.cm.RdBu_r
-    # cmap = plt.cm.PuRd
-    cmap = plt.cm.BuGn
-    # cmap = plt.cm.coolwarm
-    
-    # TODO: select the high_clip as a percentile of values, provide slider control
-    norm = mcolors.Normalize(vmin=np.nanmin(df_filtered[color_source_col].values),
-                               vmax=np.nanmax(df_filtered[color_source_col].values), 
-                              # vmax=11900, 
-                             clip=True)
-    mapper = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-    
-    # df_filtered['color'] = df_filtered[color_source_col].apply(lambda x: mapper.to_rgba(x, alpha=.4))
-    df_filtered['color'] = df_filtered[color_source_col].apply(lambda x: 
-                                                               [255*c
-                                                                for c in
-                                                                mapper.to_rgba(x, alpha=.2)])
+color_source_col = aggregate_field
+df_filtered['color'] = df_filtered[color_source_col].map(category_colors)
 
 
-
-# %% map background
+# %% map background controls
 
 MAP_BACKGROUND_CONTROL = False
 map_style_options = { 'mapbox://styles/mpowers38111/clogll9d8006p01qjcy6b5vzm': 'Style 1', 
@@ -234,6 +208,10 @@ if MAP_BACKGROUND_CONTROL:
 # %% construct and display map
 
 df_latlon = df_filtered[['lat', 'lon', 'color']].copy()
+df_latlon['tooltip_value'] = df_filtered[color_source_col]
+df_latlon['tooltip_value'].fillna(value="None", inplace=True)
+df_latlon['tooltip_name'] = aggregate_field_options[color_source_col]
+
 # st.write(df_latlon.head(10))
 
 def construct_patron_map(df, map_style):
@@ -252,7 +230,7 @@ def construct_patron_map(df, map_style):
                 type = "GeoJsonLayer",
                 data=df_counties,
                 line_width_min_pixels=1.5,
-                pickable=True,
+                pickable=False,
                 auto_highlight=True,
                 stroked=True,
                 filled=False,
@@ -265,18 +243,18 @@ def construct_patron_map(df, map_style):
                 opacity=.2,
                 data=df,
                 get_position=['lon', 'lat'],
-                get_color='[0, 100, 30, 80]',
-                # get_color=map_color_field,
-                # get_color='color',
+                # get_color='[0, 100, 30, 80]',
+                get_color='color',
                 get_radius=50,
                 radius_min_pixels=1.33,
-                radius_max_pixels=20
-
+                radius_max_pixels=20,
+                pickable=True,
+                auto_highlight=True,
                 ),
             ],
         tooltip = {
-            # Can only display tooltip from one pickable layer, currently GeoJsonLayer
-            "text": "{NAME}"
+            # Can only display tooltip from one pickable layer, currently ScatterplotLayer
+            "text": "{tooltip_name}: {tooltip_value}"
             },
         )
     return patron_map
