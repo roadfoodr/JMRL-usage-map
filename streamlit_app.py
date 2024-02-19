@@ -12,7 +12,7 @@ import streamlit as st
 from st_files_connection import FilesConnection
 
 # from streamlit_utilities import check_password as check_password
-from streamlit_utilities import category_colors
+from streamlit_utilities import category_colors, rgb_to_hex
 
 # import os
 
@@ -171,6 +171,8 @@ df_grouped = df_filtered[[aggregate_field]].groupby(
     by=[aggregate_field], as_index=False).value_counts(sort=True, ascending=False)
 # df_grouped.reset_index(inplace=True)
 
+category_colors_hex = [rgb_to_hex(*rgb) for rgb in category_colors.values()]
+
 c = alt.Chart(df_grouped).mark_bar().encode(
     x=alt.X(aggregate_field,
             title=aggregate_field_options[aggregate_field],
@@ -179,7 +181,13 @@ c = alt.Chart(df_grouped).mark_bar().encode(
                                 ),
             ),
     y=alt.Y(sort_field),
-)
+    color = alt.Color(aggregate_field, 
+                      scale=alt.Scale(domain=list(category_colors.keys()), 
+                                      range=category_colors_hex,
+                                      ),
+                       legend=None)
+    )
+
 
 with col12:
     # st.write(df_grouped.head(10))
