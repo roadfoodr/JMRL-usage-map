@@ -6,6 +6,11 @@ Created on Thu May 25 00:56:32 2023
 """
 
 import streamlit as st
+import pandas as pd
+import s3fs
+
+DATA_DIR = './data/'
+S3_DIR = 'jmrl-visualization/'
 
 
 category_colors = {
@@ -22,6 +27,23 @@ category_colors = {
     'Out of Area': (127, 127, 127, 128),
     'Scottsville': (23, 190, 207, 128)
 }
+
+# %% load data once
+@st.cache_data
+def load_data_s3(data_file):
+    # Create an S3 file system
+    fs = s3fs.S3FileSystem(anon=False)
+
+    s3_path = f'{S3_DIR}{data_file}'
+    with fs.open(s3_path, 'rb') as f:
+        df_loaded = pd.read_csv(f)
+    return df_loaded
+
+@st.cache_data
+def load_data_pickle(data_file):
+    path = f'{DATA_DIR}{data_file}'
+    df_loaded = pd.read_pickle(path)        
+    return df_loaded
 
 
 def hex_to_rgb(hex):

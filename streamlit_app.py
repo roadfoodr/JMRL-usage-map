@@ -6,38 +6,18 @@ Created on Wed May 24 02:35:20 2023
 """
 
 import pandas as pd
-# import geopandas as gpd
+import geopandas as gpd
 import numpy as np
 import streamlit as st
-from st_files_connection import FilesConnection
 
-# from streamlit_utilities import check_password as check_password
-from streamlit_utilities import category_colors, rgb_to_hex
-
-# import os
+from streamlit_utilities import category_colors, rgb_to_hex, load_data_s3, load_data_pickle
 
 import altair as alt
 import pydeck as pdk
 
-DATA_DIR = './data/'
-S3_DIR = 'jmrl-visualization/'
 S3_FILE = 'patrons_geocoded_091923.csv'
 SHAPE_FILE = 'JMRL_counties.pickle'
 
-
-# %% load data once
-@st.cache_data
-def load_data_s3(data_file):
-    path = f'{S3_DIR}{data_file}'
-    conn = st.connection('s3', type=FilesConnection)
-    df_loaded = conn.read(path, input_format="csv", ttl=600)
-    return df_loaded
-
-@st.cache_data
-def load_data_pickle(data_file):
-    path = f'{DATA_DIR}{data_file}'
-    df_loaded = pd.read_pickle(path)        
-    return df_loaded
 
 # %%  STREAMLIT APP LAYOUT
 st.set_page_config(
@@ -59,11 +39,6 @@ st.markdown(
     ),
     unsafe_allow_html=True,
 )
-
-# if not check_password():
-#     st.stop()
-#     # pass
-
 
 # %% load data
 df = load_data_s3(S3_FILE)
@@ -90,7 +65,6 @@ df.dropna(subset=['lat', 'lon'], inplace=True)
 df['color'] = df['home_branch'].map(category_colors)
 
 # %% preview df
-
 with st.expander("Data sample (anonymized)", expanded=False):
     st.write(f"##### Sample of data: {len(df)} total rows")
     st.dataframe(df.head(5))
