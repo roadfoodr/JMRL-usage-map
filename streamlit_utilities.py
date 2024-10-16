@@ -24,7 +24,8 @@ category_colors = {
     'Nelson': (140, 86, 75, 128),
     'Northside': (31, 119, 180, 128),
     'Albemarle': (31, 119, 180, 128),
-    'Out of Area': (127, 127, 127, 128),
+    'Out of Area': (255, 0, 255, 128),
+    # 'Out of Area': (127, 127, 127, 128),
     'Scottsville': (23, 190, 207, 128)
 }
 

@@ -104,6 +104,7 @@ with col11:
                           or global_filter_selection == 'All')
                    else df[df[global_filter_field] == global_filter_selection].copy()
                    )
+
 # st.caption(f'Rows in current view: {len(df_filtered)}')
 # st.dataframe(df_filtered.head(5))
 
@@ -170,6 +171,10 @@ with col12:
 
 # %% set up color column
 color_source_col = aggregate_field
+# Additional filtering to omit markers that don't have a color assigned
+valid_categories = set(category_colors.keys())
+df_filtered = df_filtered[df_filtered[aggregate_field].isin(valid_categories)]
+
 df_filtered['color'] = df_filtered[color_source_col].map(category_colors)
 
 
@@ -206,6 +211,7 @@ def construct_patron_map(df, map_style):
             latitude=df['lat'].mean(),
             longitude=df['lon'].mean(),
             zoom=9,
+            height=850,
             ),
         layers=[
             pdk.Layer(
@@ -228,7 +234,7 @@ def construct_patron_map(df, map_style):
                 # get_color='[0, 100, 30, 80]',
                 get_color='color',
                 get_radius=50,
-                radius_min_pixels=1.33,
+                radius_min_pixels=1.5,
                 radius_max_pixels=20,
                 pickable=True,
                 auto_highlight=True,
