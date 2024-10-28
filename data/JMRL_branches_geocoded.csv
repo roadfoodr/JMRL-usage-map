@@ -1,0 +1,9 @@
+Name,jurisdiction,street,city,state,zip,addr_combined,Match_Status,Match Type,addr_geoprov,geoprov,long,lat,TigerLineId,Side,State,County,Tract,Block,GeoID
+Gordon,Charlottesville,1500 Gordon Avenue,Charlottesville,VA,22903,"1500 Gordon Avenue, Charlottesville, VA, 22903",Match,Exact,"1500 Gordon Ave, CHARLOTTESVILLE, VA, 22903",Census,-78.49782,38.03958,83369359,L,51,540,202,3006,
+Nelson,Nelson,8521 Thomas Nelson Highway,Lovingston,VA,22949,"8521 Thomas Nelson Highway, Lovingston, VA, 22949",Match,Exact,"8521 Thomas Nelson Hwy, LOVINGSTON, VA, 22949",Census,-78.87679,37.752186,98918708,L,51,125,950300,1116,
+Crozet,Albemarle,2020 Library Avenue,Crozet,VA,22932,"2020 Library Avenue, Crozet, VA, 22932",No_Match,,,https://www.mapdevelopers.com/,-78.7006234,38.0679556,,,51,3,11100,4028,
+Louisa,Louisa,881 Davis Highway,Mineral,VA,23117,"881 Davis Highway, Mineral, VA, 23117",Match,Exact,"881 Davis Hwy, MINERAL, VA, 23117",Census,-77.92117,38.020153,84936018,L,51,109,950202,2003,
+Northside,Albemarle,705 West Rio Road,Charlottesville,VA,22901,"705 West Rio Road, Charlottesville, VA, 22901",Match,Non_Exact,"705 E Rio Rd, CHARLOTTESVILLE, VA, 22901",Census,-78.46078,38.056984,83402103,R,51,3,10602,2000,
+Central,Charlottesville,201 E. Market Street,Charlottesville,VA,22902,"201 E. Market Street, Charlottesville, VA, 22902",Match,Exact,"201 Market St, CHARLOTTESVILLE, VA, 22902",Census,-78.48195,38.03179,83370694,R,51,540,1000,1008,
+Greene,Greene,222 Main Street Suite 101,Stanardsville,VA,22973,"222 Main Street Suite 101, Stanardsville, VA, 22973",Match,Exact,"222 Main St, STANARDSVILLE, VA, 22973",Census,-78.43789,38.297455,29867883,R,51,79,30101,2045,
+Scottsville,Scottsville,330 Bird Street,Scottsville,VA,24590,"330 Bird Street, Scottsville, VA, 24590",Match,Exact,"330 Bird St, SCOTTSVILLE, VA, 24590",Census,-78.49775,37.798695,221726488,L,51,3,11400,2018,510000000000000

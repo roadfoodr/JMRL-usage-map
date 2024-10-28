@@ -15,7 +15,8 @@ from streamlit_utilities import category_colors, rgb_to_hex, load_data_s3, load_
 import altair as alt
 import pydeck as pdk
 
-S3_FILE = 'patrons_geocoded_091923.csv'
+PATRONS_FILE = 'patrons_geocoded_091923.csv'
+BRANCHES_FILE = 'JMRL_branches_geocoded.csv'
 SHAPE_FILE = 'JMRL_counties.pickle'
 
 
@@ -41,12 +42,17 @@ st.markdown(
 )
 
 # %% load data
-df = load_data_s3(S3_FILE)
+df = load_data_s3(PATRONS_FILE)
+df_branches = load_data_s3(BRANCHES_FILE)
 # TODO: read this from S3
 df_counties = load_data_pickle(SHAPE_FILE)
 
 st.title("JMRL usage", anchor="title")
 # st.write(df_counties.head(2))
+
+# %% prepare branch data
+df_branches = df_branches[['Name', 'lat', 'long']].copy()
+df_branches.columns = ['name', 'lat', 'lon']  # Rename to match patron data format
 
 # %% filter and rename
 df['lat'] = df['lat_anon']
@@ -198,8 +204,10 @@ df_latlon = df_filtered[['lat', 'lon', 'color']].copy()
 df_latlon['tooltip_value'] = df_filtered[color_source_col]
 df_latlon['tooltip_value'].fillna(value="None", inplace=True)
 df_latlon['tooltip_name'] = aggregate_field_options[color_source_col]
-
 # st.write(df_latlon.head(10))
+
+df_branches['tooltip_name'] = 'Branch'
+df_branches['tooltip_value'] = df_branches['name']
 
 def construct_patron_map(df, map_style):
     patron_map = pdk.Deck(
@@ -214,8 +222,9 @@ def construct_patron_map(df, map_style):
             height=850,
             ),
         layers=[
+            # County boundaries layer
             pdk.Layer(
-                type = "GeoJsonLayer",
+                type="GeoJsonLayer",
                 data=df_counties,
                 line_width_min_pixels=1.5,
                 pickable=False,
@@ -223,7 +232,8 @@ def construct_patron_map(df, map_style):
                 stroked=True,
                 filled=False,
                 get_line_color=[0, 0, 0, 48],
-                ),
+            ),
+            # Patron layer (ScatterplotLayer or HeatmapLayer)
             pdk.Layer(
                 # 'ScatterplotLayer',
                 # 'HeatmapLayer',
@@ -239,7 +249,32 @@ def construct_patron_map(df, map_style):
                 pickable=True,
                 auto_highlight=True,
                 ),
-            ],
+            # Outer black circle for branches
+            pdk.Layer(
+                "ScatterplotLayer",
+                data=df_branches,
+                get_position=['lon', 'lat'],
+                get_color=[48, 48, 48, 255],  # Black
+                get_radius=150,
+                radius_min_pixels=6,
+                radius_max_pixels=20,
+                pickable=True,
+                opacity=1.0,
+            ),
+            # Inner white circle for branches
+            pdk.Layer(
+                "ScatterplotLayer",
+                data=df_branches,
+                get_position=['lon', 'lat'],
+                get_color=[255, 255, 255, 255],  # White
+                get_radius=100,
+                radius_min_pixels=2,
+                radius_max_pixels=6,
+                pickable=True,
+                opacity=1.0,
+            ),
+        ],
+
         tooltip = {
             # Can only display tooltip from one pickable layer, currently ScatterplotLayer
             "text": "{tooltip_name}: {tooltip_value}"
