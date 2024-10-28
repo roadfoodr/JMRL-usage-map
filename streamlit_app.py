@@ -15,7 +15,7 @@ from streamlit_utilities import category_colors, rgb_to_hex, load_data_s3, load_
 import altair as alt
 import pydeck as pdk
 
-PATRONS_FILE = 'patrons_geocoded_091923.csv'
+PATRONS_FILE = 'patrons_finalized_102724.csv'
 BRANCHES_FILE = 'JMRL_branches_geocoded.csv'
 SHAPE_FILE = 'JMRL_counties.pickle'
 
@@ -57,12 +57,14 @@ df_branches.columns = ['name', 'lat', 'lon']  # Rename to match patron data form
 # %% filter and rename
 df['lat'] = df['lat_anon']
 df['lon'] = df['long_anon']
-df['Circ'] = df['TOT CHKOUT'] + df['TOT RENWAL']
+df['Circ'] = df['circ_combined_total']
+df['creation_date'] = df['circ_phy_start']
 usecols = ['Circ', 
        'creation_date', 'home_branch', 'jurisdiction',
        'card_type', 'lat', 'lon', 'geoloc',
        'lat_geohash', 'long_geohash', 'frequent_location',
-       'frequent_location_tie']
+       'frequent_location_tie', 'nearest_branch_name', 'nearest_branch_dist',
+       'circ_phy_avg', 'circ_dig_avg', 'circ_dig_ratio']
 
 df = df[usecols]
 
@@ -86,6 +88,7 @@ with col11:
                              'jurisdiction': 'Jurisdiction',
                              'home_branch': 'Home Branch',
                              'frequent_location': 'Frequent Branch',
+                             'nearest_branch_name': 'Nearest Branch',
                              }
 
     global_filter_field = st.selectbox(
@@ -138,6 +141,7 @@ aggregate_field_options = {
     'frequent_location': 'Frequent Branch',
     'home_branch': 'Home Branch',
     'jurisdiction': 'Jurisdiction',
+    'nearest_branch_name': 'Nearest Branch',
     }
 
 with col12:
@@ -148,8 +152,33 @@ with col12:
         key='aggregate_field_1'
         )
 
-df_grouped = df_filtered[[aggregate_field]].groupby(
-    by=[aggregate_field], as_index=False).value_counts(sort=True, ascending=False)
+# Compute groupby statistics based on categorization type
+if aggregate_field == 'nearest_branch_name':
+    # For nearest branch view, include both count and average distance
+    df_grouped = (df_filtered[[aggregate_field, 'nearest_branch_dist']]
+                 .groupby(aggregate_field)
+                 .agg({
+                     'nearest_branch_dist': 'mean',
+                     aggregate_field: 'size'
+                 })
+                 .rename(columns={aggregate_field: 'count'})
+                 .reset_index())
+    df_grouped['nearest_branch_dist'] = df_grouped['nearest_branch_dist'].round(2)
+    
+    tooltip_fields = [
+        alt.Tooltip(aggregate_field, title='Branch'),
+        alt.Tooltip('count', title='Count'),
+        alt.Tooltip('nearest_branch_dist', title='Avg Distance (mi)')
+    ]
+else:
+    # For other views, just get the count
+    df_grouped = df_filtered[[aggregate_field]].groupby(
+        by=[aggregate_field], as_index=False).value_counts(sort=True, ascending=False)
+    
+    tooltip_fields = [
+        alt.Tooltip(aggregate_field, title=aggregate_field_options[aggregate_field].replace(' Branch', '')),
+        alt.Tooltip('count', title='Count')
+    ]
 # df_grouped.reset_index(inplace=True)
 
 category_colors_hex = [rgb_to_hex(*rgb) for rgb in category_colors.values()]
@@ -166,7 +195,8 @@ c = alt.Chart(df_grouped).mark_bar().encode(
                       scale=alt.Scale(domain=list(category_colors.keys()), 
                                       range=category_colors_hex,
                                       ),
-                       legend=None)
+                       legend=None),
+    tooltip=tooltip_fields
     )
 
 
@@ -249,12 +279,12 @@ def construct_patron_map(df, map_style):
                 pickable=True,
                 auto_highlight=True,
                 ),
-            # Outer black circle for branches
+            # Outer dark gray circle for branches
             pdk.Layer(
                 "ScatterplotLayer",
                 data=df_branches,
                 get_position=['lon', 'lat'],
-                get_color=[48, 48, 48, 255],  # Black
+                get_color=[48, 48, 48, 255],  # Dark gray
                 get_radius=150,
                 radius_min_pixels=6,
                 radius_max_pixels=20,
