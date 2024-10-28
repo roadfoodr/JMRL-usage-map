@@ -136,12 +136,14 @@ with col11:
 
 aggregate_field = 'frequent_location'
 sort_field = 'count'
+category_colors_hex = [rgb_to_hex(*rgb) for rgb in category_colors.values()]
 
 aggregate_field_options = {
     'frequent_location': 'Frequent Branch',
     'home_branch': 'Home Branch',
     'jurisdiction': 'Jurisdiction',
     'nearest_branch_name': 'Nearest Branch',
+    'circ_dig_ratio': 'Digital Use Ratio',
     }
 
 with col12:
@@ -170,6 +172,36 @@ if aggregate_field == 'nearest_branch_name':
         alt.Tooltip('count', title='Count'),
         alt.Tooltip('nearest_branch_dist', title='Avg Distance (mi)')
     ]
+    chart_title = aggregate_field_options[aggregate_field]
+    chart_x_field = aggregate_field
+
+elif aggregate_field == 'circ_dig_ratio':
+    # Create manual bins for digital ratio
+    bins = [i/20 for i in range(21)]  # Creates [0, 0.05, 0.1, ..., 0.95, 1.0]
+    labels = [f"{bins[i]:.2f}-{bins[i+1]:.2f}" for i in range(len(bins)-1)]
+    
+    df_filtered['ratio_bin'] = pd.cut(df_filtered['circ_dig_ratio'], 
+                                    bins=bins,
+                                    labels=labels,
+                                    include_lowest=True)
+    
+    df_grouped = (df_filtered.groupby('ratio_bin')
+                 .agg({
+                     'circ_dig_ratio': 'mean',
+                     'ratio_bin': 'size'
+                 })
+                 .rename(columns={'ratio_bin': 'count'})
+                 .reset_index())
+    
+    tooltip_fields = [
+        alt.Tooltip('ratio_bin', title='Digital Ratio Range'),
+        alt.Tooltip('count', title='Count'),
+        alt.Tooltip('circ_dig_ratio', title='Avg Ratio', format='.2%')
+    ]
+    
+    chart_title = aggregate_field_options[aggregate_field]
+    chart_x_field = 'ratio_bin'
+
 else:
     # For other views, just get the count
     df_grouped = df_filtered[[aggregate_field]].groupby(
@@ -179,24 +211,107 @@ else:
         alt.Tooltip(aggregate_field, title=aggregate_field_options[aggregate_field].replace(' Branch', '')),
         alt.Tooltip('count', title='Count')
     ]
-# df_grouped.reset_index(inplace=True)
 
-category_colors_hex = [rgb_to_hex(*rgb) for rgb in category_colors.values()]
 
-c = alt.Chart(df_grouped).mark_bar().encode(
-    x=alt.X(aggregate_field,
-            title=aggregate_field_options[aggregate_field],
-            sort=alt.SortField(field=sort_field,
-                                order='descending',
-                                ),
-            ),
-    y=alt.Y(sort_field),
-    color = alt.Color(aggregate_field, 
-                      scale=alt.Scale(domain=list(category_colors.keys()), 
-                                      range=category_colors_hex,
-                                      ),
+# For digital ratio, use a red-to-blue color scheme
+if aggregate_field == 'circ_dig_ratio':
+    # Create manual bins for digital ratio
+    bins = [i/20 for i in range(21)]  # Creates [0, 0.05, 0.1, ..., 0.95, 1.0]
+    # Create percentage labels (e.g., "5%" instead of "0.00-0.05")
+    labels = [f"{int(bins[i+1]*100)}%" for i in range(len(bins)-1)]
+    
+    df_filtered['ratio_bin'] = pd.cut(df_filtered['circ_dig_ratio'], 
+                                    bins=bins,
+                                    labels=labels,
+                                    include_lowest=True)
+    
+    df_grouped = (df_filtered.groupby('ratio_bin')
+                 .agg({
+                     'circ_dig_ratio': 'mean',
+                     'ratio_bin': 'size'
+                 })
+                 .rename(columns={'ratio_bin': 'count'})
+                 .reset_index())
+    
+    # Calculate bin centers for coloring (still using original decimal values)
+    df_grouped['bin_center'] = [(i+0.5)/20 for i in range(20)]
+    
+    # Create color mapping
+    df_grouped['color'] = df_grouped['bin_center'].apply(
+        lambda x: f"rgb({int(255 * (1-x))}, 0, {int(255 * x)})"
+    )
+    
+    # Create the chart with explicit encoding
+    c = alt.Chart(df_grouped).mark_bar(
+        width=20  # Set bar width
+    ).encode(
+        x=alt.X('ratio_bin:N',
+                title='Digital Use Ratio',
+                sort=None),
+        y=alt.Y('count:Q',
+                title='Number of Patrons'),
+        color=alt.Color('color:N',
+                       scale=None),  # Use the pre-calculated colors
+        tooltip=[
+            alt.Tooltip('ratio_bin:N', title='Digital Ratio'),
+            alt.Tooltip('count:Q', title='Count'),
+            alt.Tooltip('circ_dig_ratio:Q', title='Avg Ratio', format='.1%')
+        ]
+    ).properties(
+        width=alt.Step(20)  # Set step size between bars
+    )
+
+else:
+    # For other views, filter out zero counts
+    if aggregate_field == 'nearest_branch_name':
+        # Include both count and average distance
+        df_grouped = (df_filtered
+                     .groupby(aggregate_field)
+                     .agg({
+                         'nearest_branch_dist': 'mean',
+                         aggregate_field: 'size'
+                     })
+                     .rename(columns={aggregate_field: 'count'})
+                     .reset_index())
+        df_grouped['nearest_branch_dist'] = df_grouped['nearest_branch_dist'].round(2)
+        tooltip_fields = [
+            alt.Tooltip(aggregate_field, title='Branch'),
+            alt.Tooltip('count', title='Count'),
+            alt.Tooltip('nearest_branch_dist', title='Avg Distance (mi)')
+        ]
+    else:
+        # Regular count-only grouping for other fields
+        df_grouped = df_filtered[[aggregate_field]].groupby(
+            by=[aggregate_field], as_index=False).value_counts(sort=True, ascending=False)
+        
+        
+        tooltip_fields = [
+            alt.Tooltip(aggregate_field, title=aggregate_field_options[aggregate_field].replace(' Branch', '')),
+            alt.Tooltip('count', title='Count')
+        ]
+        
+    # Filter out any entries with zero counts
+    df_grouped = df_grouped[df_grouped['count'] > 0]
+
+    # Additional filtering to omit bars that don't have a color assigned
+    valid_categories = set(category_colors.keys())
+    df_grouped = df_grouped[df_grouped[aggregate_field].isin(valid_categories)]
+
+
+    c = alt.Chart(df_grouped).mark_bar().encode(
+        x=alt.X(aggregate_field,
+                title=aggregate_field_options[aggregate_field],
+                sort=alt.SortField(field='count',
+                                 order='descending',
+                                 ),
+                ),
+        y=alt.Y('count'),
+        color=alt.Color(aggregate_field, 
+                       scale=alt.Scale(domain=list(category_colors.keys()), 
+                                     range=category_colors_hex,
+                                     ),
                        legend=None),
-    tooltip=tooltip_fields
+        tooltip=tooltip_fields
     )
 
 
@@ -207,11 +322,30 @@ with col12:
 
 # %% set up color column
 color_source_col = aggregate_field
-# Additional filtering to omit markers that don't have a color assigned
-valid_categories = set(category_colors.keys())
-df_filtered = df_filtered[df_filtered[aggregate_field].isin(valid_categories)]
-
-df_filtered['color'] = df_filtered[color_source_col].map(category_colors)
+if color_source_col == 'circ_dig_ratio':
+    # For digital ratio, create a red-to-blue color scale
+    df_filtered['color'] = df_filtered['circ_dig_ratio'].apply(
+        lambda x: [255 * (1-x),  # Red component
+                  0,            # Green component
+                  255 * x,      # Blue component
+                  32 if x < 0.05 else 64]  # Alpha - more transparent for low use
+    )
+    # Add summary stats for digital ratio
+    with col11:
+        st.caption("Average digital use ratio: {:.1%}".format(
+            df_filtered['circ_dig_ratio'].mean()))
+else:
+    # Additional filtering to omit markers that don't have a color assigned
+    valid_categories = set(category_colors.keys())
+    df_filtered = df_filtered[df_filtered[aggregate_field].isin(valid_categories)]
+    
+    # Update colors based on selected categorization
+    df_filtered['color'] = df_filtered[color_source_col].map(category_colors)
+    # Add summary stats for nearest branch when that view is selected
+    if color_source_col == 'nearest_branch_name':
+        with col11:
+            st.caption("Average distance to nearest branch: {:.2f} miles".format(
+                df_filtered['nearest_branch_dist'].mean()))
 
 
 # %% map background controls
