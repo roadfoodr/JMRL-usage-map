@@ -82,3 +82,17 @@ def check_password():
     else:
         # Password correct.
         return True
+
+
+def compute_median_patron(df):
+    return pd.Series({
+        'lat': df['lat'].median(),
+        'lon': df['lon'].median(),
+        'frequent_location': df['frequent_location'].mode().iloc[0] if not df['frequent_location'].mode().empty else 'Unknown',
+        'home_branch': df['home_branch'].mode().iloc[0],
+        'jurisdiction': df['jurisdiction'].mode().iloc[0],
+        'nearest_branch_dist': df['nearest_branch_dist'].median(),
+        'circ_phy_avg': df['circ_phy_avg'].mean(),
+        'circ_dig_avg': df['circ_dig_avg'].mean(),
+        'count': 1  # Set to 1 for the bar chart
+    })

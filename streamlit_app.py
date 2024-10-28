@@ -10,7 +10,7 @@ import geopandas as gpd
 import numpy as np
 import streamlit as st
 
-from streamlit_utilities import category_colors, rgb_to_hex, load_data_s3, load_data_pickle
+from streamlit_utilities import category_colors, rgb_to_hex, load_data_s3, load_data_pickle, compute_median_patron
 
 import altair as alt
 import pydeck as pdk
@@ -144,6 +144,7 @@ aggregate_field_options = {
     'jurisdiction': 'Jurisdiction',
     'nearest_branch_name': 'Nearest Branch',
     'circ_dig_ratio': 'Digital Use Ratio',
+    'median_patron': 'Median Patron',
     }
 
 with col12:
@@ -155,7 +156,62 @@ with col12:
         )
 
 # Compute groupby statistics based on categorization type
-if aggregate_field == 'nearest_branch_name':
+if aggregate_field == 'median_patron':
+    # Compute median patron metrics
+    median_patron = compute_median_patron(df_filtered)
+    
+    # Create single-row DataFrame for the bar chart
+    df_grouped = pd.DataFrame([{
+        'category': 'Median Patron',
+        'jurisdiction': median_patron['jurisdiction'],
+        'count': len(df_filtered),  # Show total number of patrons represented
+        'frequent_location': median_patron['frequent_location'],
+        'home_branch': median_patron['home_branch'],
+        'nearest_branch_dist': median_patron['nearest_branch_dist'],
+        'circ_phy_avg': median_patron['circ_phy_avg'],
+        'circ_dig_avg': median_patron['circ_dig_avg']
+    }])
+    
+    tooltip_fields = [
+        alt.Tooltip('jurisdiction', title='Jurisdiction'),
+        alt.Tooltip('count', title='Patrons Represented'),
+        alt.Tooltip('frequent_location', title='Most Common Branch'),
+        alt.Tooltip('home_branch', title='Most Common Home'),
+        alt.Tooltip('nearest_branch_dist', title='Median Distance (mi)', format='.2f'),
+        alt.Tooltip('circ_phy_avg', title='Median Physical Circ/Year', format='.1f'),
+        alt.Tooltip('circ_dig_avg', title='Median Digital Circ/Year', format='.1f')
+    ]
+    
+    # Create the chart
+    c = alt.Chart(df_grouped).mark_bar().encode(
+        x=alt.X('jurisdiction',
+                title='Jurisdiction'),
+        y=alt.Y('count',
+                title='Number of Patrons Represented'),
+        color=alt.Color('jurisdiction', 
+                       scale=alt.Scale(domain=list(category_colors.keys()), 
+                                     range=category_colors_hex),
+                       legend=None),
+        tooltip=tooltip_fields
+    )
+
+    # Update the map data for median patron
+    df_latlon = pd.DataFrame([{
+        'lat': median_patron['lat'],
+        'lon': median_patron['lon'],
+        'color': category_colors[median_patron['jurisdiction']],
+        'tooltip_value': (
+            f"Most Common Branch: {median_patron['frequent_location']}\n"
+            f"Home Branch: {median_patron['home_branch']}\n"
+            f"Jurisdiction: {median_patron['jurisdiction']}\n"
+            f"Distance: {median_patron['nearest_branch_dist']:.2f} mi\n"
+            f"Physical Circ/Yr: {median_patron['circ_phy_avg']:.1f}\n"
+            f"Digital Circ/Yr: {median_patron['circ_dig_avg']:.1f}"
+        ),
+        'tooltip_name': 'Median Patron Stats'
+    }])
+
+elif aggregate_field == 'nearest_branch_name':
     # For nearest branch view, include both count and average distance
     df_grouped = (df_filtered[[aggregate_field, 'nearest_branch_dist']]
                  .groupby(aggregate_field)
@@ -261,6 +317,44 @@ if aggregate_field == 'circ_dig_ratio':
         width=alt.Step(20)  # Set step size between bars
     )
 
+elif aggregate_field == 'median_patron':
+    # Compute median patron metrics
+    median_patron = compute_median_patron(df_filtered)
+    
+    # Create single-row DataFrame for the bar chart
+    df_grouped = pd.DataFrame([{
+        'jurisdiction': median_patron['jurisdiction'],
+        'count': len(df_filtered),  # Show total number of patrons represented
+        'frequent_location': median_patron['frequent_location'],
+        'home_branch': median_patron['home_branch'],
+        'nearest_branch_dist': median_patron['nearest_branch_dist'],
+        'circ_phy_avg': median_patron['circ_phy_avg'],
+        'circ_dig_avg': median_patron['circ_dig_avg']
+    }])
+
+    tooltip_fields = [
+        alt.Tooltip('jurisdiction', title='Jurisdiction'),
+        alt.Tooltip('count', title='Patrons Represented'),
+        alt.Tooltip('frequent_location', title='Most Common Branch'),
+        alt.Tooltip('home_branch', title='Most Common Home'),
+        alt.Tooltip('nearest_branch_dist', title='Median Distance (mi)', format='.2f'),
+        alt.Tooltip('circ_phy_avg', title='Avg Physical Circ/Year', format='.1f'),
+        alt.Tooltip('circ_dig_avg', title='Avg Digital Circ/Year', format='.1f')
+    ]
+
+    # Create the chart
+    c = alt.Chart(df_grouped).mark_bar().encode(
+        x=alt.X('jurisdiction',
+                title='Jurisdiction'),
+        y=alt.Y('count',
+                title='Number of Patrons Represented'),
+        color=alt.Color('jurisdiction', 
+                       scale=alt.Scale(domain=list(category_colors.keys()), 
+                                     range=category_colors_hex),
+                       legend=None),
+        tooltip=tooltip_fields
+    )
+    
 else:
     # For other views, filter out zero counts
     if aggregate_field == 'nearest_branch_name':
@@ -321,7 +415,7 @@ with col12:
 
 
 # %% set up color column
-color_source_col = aggregate_field
+color_source_col = 'jurisdiction' if aggregate_field == 'median_patron' else aggregate_field
 if color_source_col == 'circ_dig_ratio':
     # For digital ratio, create a red-to-blue color scale
     df_filtered['color'] = df_filtered['circ_dig_ratio'].apply(
@@ -337,7 +431,8 @@ if color_source_col == 'circ_dig_ratio':
 else:
     # Additional filtering to omit markers that don't have a color assigned
     valid_categories = set(category_colors.keys())
-    df_filtered = df_filtered[df_filtered[aggregate_field].isin(valid_categories)]
+    if aggregate_field != 'median_patron':
+        df_filtered = df_filtered[df_filtered[aggregate_field].isin(valid_categories)]
     
     # Update colors based on selected categorization
     df_filtered['color'] = df_filtered[color_source_col].map(category_colors)
@@ -364,11 +459,29 @@ if MAP_BACKGROUND_CONTROL:
 
 # %% construct and display map
 
-df_latlon = df_filtered[['lat', 'lon', 'color']].copy()
-df_latlon['tooltip_value'] = df_filtered[color_source_col]
-df_latlon['tooltip_value'].fillna(value="None", inplace=True)
-df_latlon['tooltip_name'] = aggregate_field_options[color_source_col]
-# st.write(df_latlon.head(10))
+# Prepare map data differently for median patron vs other views
+if aggregate_field == 'median_patron':
+    median_patron = compute_median_patron(df_filtered)
+    df_latlon = pd.DataFrame([{
+        'lat': median_patron['lat'],
+        'lon': median_patron['lon'],
+        'color': category_colors[median_patron['jurisdiction']],
+        'tooltip_value': (
+            f"\nMost Common Branch: {median_patron['frequent_location']}\n"
+            f"Home Branch: {median_patron['home_branch']}\n"
+            f"Jurisdiction: {median_patron['jurisdiction']}\n"
+            f"Distance: {median_patron['nearest_branch_dist']:.2f} mi\n"
+            f"Physical Circ/Yr: {median_patron['circ_phy_avg']:.1f}\n"
+            f"Digital Circ/Yr: {median_patron['circ_dig_avg']:.1f}"
+        ),
+        'tooltip_name': 'Median Patron Stats'
+    }])
+else:
+    df_latlon = df_filtered[['lat', 'lon', 'color']].copy()
+    df_latlon['tooltip_value'] = df_filtered[color_source_col]
+    df_latlon['tooltip_value'].fillna(value="None", inplace=True)
+    df_latlon['tooltip_name'] = aggregate_field_options[color_source_col]
+    # st.write(df_latlon.head(10))
 
 df_branches['tooltip_name'] = 'Branch'
 df_branches['tooltip_value'] = df_branches['name']
@@ -402,14 +515,14 @@ def construct_patron_map(df, map_style):
                 # 'ScatterplotLayer',
                 # 'HeatmapLayer',
                 view_style,
-                opacity=.2,
+                opacity=1.0 if aggregate_field == 'median_patron' else 0.2,
                 data=df,
                 get_position=['lon', 'lat'],
                 # get_color='[0, 100, 30, 80]',
                 get_color='color',
-                get_radius=50,
-                radius_min_pixels=1.5,
-                radius_max_pixels=20,
+                get_radius=200 if aggregate_field == 'median_patron' else 50,
+                radius_min_pixels=8 if aggregate_field == 'median_patron' else 1.5,
+                radius_max_pixels=30 if aggregate_field == 'median_patron' else 20,
                 pickable=True,
                 auto_highlight=True,
                 ),
