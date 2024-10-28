@@ -455,3 +455,64 @@ st.pydeck_chart(patron_map)
 # import streamlit.components.v1 as components
 # components.html(patron_map.to_html(as_string=True), height=600)
 
+
+# %% Add scatter plot for digital use ratio vs distance
+if aggregate_field == 'circ_dig_ratio':
+    st.subheader("Digital Use vs Distance Analysis", anchor="digital-distance")
+    
+    # Get the required columns and filter for distance <= 30 miles
+    digital_distance_data = df_filtered[
+        ['circ_dig_ratio', 'nearest_branch_dist']
+    ].copy()
+    digital_distance_data = digital_distance_data[
+        (digital_distance_data['nearest_branch_dist'] <= 30) & 
+        (digital_distance_data['nearest_branch_dist'].notna()) &
+        (digital_distance_data['circ_dig_ratio'].notna())
+    ]
+    
+    # Create color gradient based on digital ratio (same as map coloring)
+    digital_distance_data['color'] = digital_distance_data['circ_dig_ratio'].apply(
+        lambda x: f"rgb({int(255 * (1-x))}, 0, {int(255 * x)})"
+    )
+    
+    # Base chart with common x and y encodings
+    base = alt.Chart(digital_distance_data).encode(
+        x=alt.X('nearest_branch_dist:Q',
+                title='Distance to Nearest Branch (miles)',
+                scale=alt.Scale(domain=[0, 30])),
+        y=alt.Y('circ_dig_ratio:Q',
+                title='Digital Use Ratio',
+                axis=alt.Axis(format='%'))
+    )
+    
+    # Create scatter plot
+    scatter = base.mark_circle(
+        opacity=0.2,  # More transparent
+        size=20,      # Smaller circles
+        filled=True   # Filled circles
+    ).encode(
+        color=alt.Color('color:N', scale=None),  # Use pre-calculated colors
+        tooltip=[
+            alt.Tooltip('nearest_branch_dist:Q', 
+                       title='Distance (miles)',
+                       format='.2f'),
+            alt.Tooltip('circ_dig_ratio:Q', 
+                       title='Digital Ratio',
+                       format='.1%')
+        ]
+    )
+
+    # Add trend line
+    trend_line = base.transform_regression(
+        'nearest_branch_dist', 'circ_dig_ratio'
+    ).mark_line(
+        color='#006666',
+        strokeWidth=2 
+    )
+
+    # Combine trend line and scatter plot
+    chart = (trend_line + scatter).properties(
+        height=400
+    )
+
+    st.altair_chart(chart, use_container_width=True)
